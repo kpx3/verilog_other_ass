@@ -1,0 +1,85 @@
+module DIV_datapath (less, LdD1,LdD2, LdC,LdP, clrC, incC, data_in, clk); //datapath module for quotient and remainder 8026
+input LdD1,LdD2, LdC, clrC, incC, clk,LdP;//inputs 8026
+input [15:0] data_in;//data input from controller 8026
+output less;//output LESS to check if number is less than 10 8026
+wire [15:0] W, Y, T, Bout;//Declaring W,Y,T and Bout wires 8026
+
+LESS COMP (less, W);//instantiating LESS 8026
+PIPO1 D (W, data_in,T, LdD1,LdD2, clk);	//instantiating PIPO1 8026
+PIPO2 P (Y,LdP,clk);//instantiating PIPO2 8026
+CNTR C (Bout, LdC, incC,clk);//instantiating CNTR 8026
+SUBTRACT CT (T, W, Y) ;	//instantiating SUBTRACT 8026	
+endmodule//ending datapath module 8026
+
+module PIPO1 (dout,din1,din2,ld1,ld2,clk);//module PIPO1 8026
+input [15:0] din1;//input din1 8026
+input [15:0] din2;//input din2 8026
+input ld1,ld2, clk;//input loads ld1 ,ld2 and clock clock 8026
+output reg [15:0] dout;	//output dout 8026
+always @(posedge clk)//positive edge of the clock activates 8026
+	if(ld1) dout <= din1;//din1 is transferred to dout 8026
+	else if(ld2) dout<=din2;//din2 is transferred to dout 8026
+endmodule//end of module 8026
+
+
+module PIPO2 (dout,ld,clk);//module PIPO2 8026
+input ld,clk;//input ld and clk 8026
+output reg [15:0] dout;	//output dout 8026
+always @(posedge clk)//positive edge of the clock activates 8026
+	if(ld) dout <= 16'b0000000000001010;//initialising dout to 10 8026
+endmodule//end of module 8026
+
+
+module SUBTRACT (out, in1, in2);//module SUBTRACT to output the difference of inputs 8026
+input [15:0] in1, in2;//input in1 and din2 8026
+output reg [15:0] out;//output out as reg 8026
+always @(*)
+	out =in1-in2 ;//out is the difference of in1 and in2  8026
+endmodule
+
+module LESS (less, data);//module LESS to stop the opeation if number becomes less than 10 8026
+input [15:0] data;//input data 8026
+output less;//output less 8026
+assign less =(data <10);//when data less tahn 10 breaks the cycle 8026
+endmodule 
+
+module CNTR (dout,ld,inc,clk);//module CNTR to count 8026
+input ld,inc,clk;//inputs 8026
+output reg [15:0] dout;//output register dout 8026
+
+always @(posedge clk)//positive edge of the clock activates 8026
+	if(ld) dout<=16'd0;//assign 0 to dout when ld is activated 8026
+	else if(inc) dout <= dout+1;//increments dout by 1 8026
+endmodule																		
+
+
+module controller (LdD1,LdD2, LdC,LdP, clrC,incC,done, clk,less, start);//control path module - controller 8026
+input clk, less,start;//inputs clock,less and start 8026
+output reg LdD1,LdD2,LdC,clrC,incC,done,LdP; //outputs of controller that are input to data path 8026
+reg [2:0] state;//declaring a 2 bit register state which would determine the state in which the operation is and hence when to stop  8026
+ parameter S0=3'b000, S1=3'b001, S2=3'b010, S3=3'b011;	//declaring parameters for subtracted 8026
+
+always @(posedge clk)//positive edge of the clock activates 8026
+	begin
+	  case (state)//determine the cases for each state 8026
+		S0: if(start) state<=S1;//put S1 to state when encountered by state signal at state S0 8026
+		S1: begin//case statement for S1 8026
+        #2 if (less) state<=S3;//State S3 directly after S1 if input number is directly less than 10 8026
+        else state<=S2;//State to be given vale S2 after S1 8026
+       end//end of case statement for S1 8026
+		S2: #2 if (less) state<=S3; //whenever the module recieves signal less as 1 ,put value S3 to state after S2 8026
+		S3: state <=S3;//Once state S3 is entered,remain in it as this marks completion of task 8026
+		default: state <=S0;//default state S0 8026
+	   endcase//end of cases for state 8026
+	end
+always @(state)//always for State 8026
+	begin
+	  case (state)//cases to be followed for values of different signals at the states 8026
+		S0: begin #1 LdD1 =0;LdD2=0; LdC=0;clrC=0;incC=0;LdP=0;end//At S0,all the values put to be zero ,so give data_in to Bus	8026
+		S1: begin #1 LdD1 =1;LdC=1;clrC=1;LdP=1; end //At S1,put LdD1=1 so as to give data_in to W,LdC=1 ,clrC=1 to clear C and LdP =1 8026
+		S2: begin #1 LdD1=0;LdC=0;clrC=0;LdD2=1;incC=1;end//At S2,regive 0 to LdD1 and assign 1 to LdD2,so it continuously takes input from T,LdC and clrC= 0 and incC=1 to increase counter by everytime		8026
+		S3: begin #1 done=1;LdD1=0;LdC=0;incC=0;LdD2=0;LdP=0;end//this marks completion of operation,hence done =1 and rest be assigned 0 		8026
+		default: begin #1 LdC=0;LdD1=0;LdD2=0;clrC=0;incC=0;LdP=0;end//the default state similar to S0 assigns everything as 0				8026
+	   endcase
+	end
+endmodule //end of control path module controller													8026
